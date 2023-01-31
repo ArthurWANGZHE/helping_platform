@@ -1,10 +1,12 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI,UploadFile,File,Depends
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import jwt
+import base64
 
 Base = declarative_base()
 engine = create_engine('mysql://root:123456@127.0.0.1:3306/db', echo=True)
@@ -28,6 +30,8 @@ DBSession = sessionmaker(bind=engine)
 
 app = FastAPI()
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+
 class Register(BaseModel):
     name: str
     password: str
@@ -45,7 +49,8 @@ class Apply(BaseModel):
 @app.post("/register")
 async def register(register: Register):
     session = Session()
-    new_user = User(name=register.name, password=register.password,bonus_points = 100)
+    password = base64.b64encode(register.password.encode())
+    new_user = User(name=register.name, password=password,bonus_points = 100)
     session.add(new_user)
     session.commit()
     session.close()
@@ -55,7 +60,8 @@ async def register(register: Register):
 @app.post("/login")
 async def login(login: Login):
     session = Session()
-    user = session.query(User).filter(User.name == login.name, User.password == login.password).first()
+    password_ = base64.b64encode(login.password.encode())
+    user = session.query(User).filter(User.name == login.name, User.password == password_).first()
     session.close()
     if user:
         token = jwt.encode({'user_name': user.name}, 'secret', algorithm='HS256')
@@ -63,10 +69,23 @@ async def login(login: Login):
     else:
         return {"code": 400, "message": "登录失败"}
 
+"""
+@app.post("/upload")
+def upload(
+    file: UploadFile = File(...),
+    text: str = None,
+    token: str = Depends(oauth2_scheme)
+    ):
+    contents = await file.read()
+    session = Session()
+    new_project = contents
+    session.add(new_project)
+    session.commit()
+    session.close()
+    # do something with the contents
+    return {"filename": file.filename}
 
-
-
-
+"""
 
 if __name__ == '__main__':
     uvicorn.run(app=app,host="127.0.0.1",port=3000)

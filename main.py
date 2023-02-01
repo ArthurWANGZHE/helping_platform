@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI,UploadFile,File,Depends
+from fastapi import FastAPI,UploadFile,File,Depends,HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String
@@ -7,6 +7,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import jwt
 import base64
+from starlette.status import HTTP_401_UNAUTHORIZED
+from starlette.requests import Request
+
 
 Base = declarative_base()
 engine = create_engine('mysql://root:123456@127.0.0.1:3306/db', echo=True)
@@ -20,7 +23,7 @@ class Project(Base):
     __tablename__ = 'project'
     name = Column(String(20), primary_key=True)
     bonus_points= Column(String(20))
-    desicribe = Column(String(20))
+    describe = Column(String(20))
     picture = Column(String(20))
 
 Base.metadata.create_all(engine, checkfirst=True)
@@ -57,6 +60,7 @@ async def register(register: Register):
     return {"code": 200, "message": "注册成功"}
 
 
+SECRET_KEY = "sdifhgsiasfjaofhslio"
 @app.post("/login")
 async def login(login: Login):
     session = Session()
@@ -64,28 +68,34 @@ async def login(login: Login):
     user = session.query(User).filter(User.name == login.name, User.password == password_).first()
     session.close()
     if user:
-        token = jwt.encode({'user_name': user.name}, 'secret', algorithm='HS256')
+        token = jwt.encode({'user_name': user.name}, SECRET_KEY, algorithm='HS256')
         return {'token': token,"code": 200, "message": "登录成功"}
     else:
         return {"code": 400, "message": "登录失败"}
 
-"""
+
+
+
 @app.post("/upload")
-def upload(
-    file: UploadFile = File(...),
-    text: str = None,
-    token: str = Depends(oauth2_scheme)
-    ):
+async def upload(file: UploadFile = File(...),text: str = None,token: str = Depends(oauth2_scheme)):
     contents = await file.read()
     session = Session()
-    new_project = contents
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms='HS256')
+        username: str = payload.get("user_name")
+        user = session.query(User).filter(User.name == username).first()
+        return username
+    except jwt.PyJWTError:
+        raise HTTPException(
+        status_code=HTTP_401_UNAUTHORIZED,
+        detail="认证失败",
+        headers={"WWW-Authenticate": "Bearer"},)
+    new_project = Project(name=user.name,bonus_points=user.bonus_points,describe=text,picture=contents)
     session.add(new_project)
     session.commit()
     session.close()
-    # do something with the contents
-    return {"filename": file.filename}
+    return {"code": 200, "message": "上传成功"}
 
-"""
 
 if __name__ == '__main__':
     uvicorn.run(app=app,host="127.0.0.1",port=3000)

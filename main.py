@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 import jwt
 import base64
 from starlette.status import HTTP_401_UNAUTHORIZED
-from starlette.requests import Request
+
 
 Base = declarative_base()
 engine = create_engine('mysql://root:123456@127.0.0.1:3306/db', echo=True)
@@ -31,7 +31,9 @@ class Project(Base):
     picture = Column(String(1000))
     donation = Column(String(20))
     status = Column(String(20))
-#0：提交申请；1：申请通过；2：申请不通过；3：个人设置不公开
+
+
+# 0：提交申请；1：申请通过；2：申请不通过；3：个人设置不公开
 
 
 Base.metadata.create_all(engine, checkfirst=True)
@@ -68,7 +70,7 @@ class Detail(BaseModel):
 async def register(register: Register):
     session = Session()
     password = base64.b64encode(register.password.encode())
-    new_user = User(name=register.name, password=password, bonus_points=100, level = 0)
+    new_user = User(name=register.name, password=password, bonus_points=100, level=0)
     session.add(new_user)
     session.commit()
     session.close()
@@ -89,6 +91,7 @@ async def login(login: Login):
         return {'token': token, "code": 200, "message": "登录成功"}
     else:
         return {"code": 400, "message": "登录失败"}
+
 
 """
 @app.post("/upload")
@@ -115,6 +118,8 @@ async def upload(file: UploadFile = File(...), text1: str = None, text2: str = N
             headers={"WWW-Authenticate": "Bearer"}, )
 
 """
+
+
 @app.post("/upload")
 async def upload(file: UploadFile = File(...), project_name: str = None, description: str = None,
                  ):
@@ -210,6 +215,36 @@ async def donate(detail: Detail, text1: str = None, token: str = Depends(oauth2_
             session.commit()
             session.close()
             return {"code": 200, "message": "捐赠成功"}
+    except jwt.PyJWTError:
+        session.close()
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="认证失败",
+            headers={"WWW-Authenticate": "Bearer"}, )
+
+
+@app.patch("/invest")
+async def invest(detail: Detail, result_status: str = None, token: str = Depends(oauth2_scheme)):
+    session = Session()
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms='HS256')
+        username: str = payload.get("user_name")
+        userlevel = payload.get("user_level")
+        user = session.query(User).filter(User.name == username).first()
+        if user:
+            if userlevel > 0:
+                if result_status == 1:
+                    detail.status = result_status
+                    session.commit()
+                    session.close()
+                return {"code": 200, "message": "申请通过，修改成功"}
+                if result_status == 2:
+                    detail.status = result_status
+                    session.commit()
+                    session.close()
+                return {"code": 200, "message": "申请不通过，修改成功"}
+            else:
+                return {"code": 401, "message": "您没有修改权限"}
     except jwt.PyJWTError:
         session.close()
         raise HTTPException(

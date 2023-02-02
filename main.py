@@ -15,11 +15,11 @@ engine = create_engine('mysql://root:123456@127.0.0.1:3306/db', echo=True)
 
 
 class User(Base):
-    __tablename__ = 'user'
+    __tablename__ = 'users'
     name = Column(String(20), primary_key=True)
     password = Column(String(50), primary_key=True)
     bonus_points = Column(Integer)
-    level = Column(Integer)
+    level = Column(String(2))
 
 
 class Project(Base):
@@ -30,6 +30,8 @@ class Project(Base):
     describe = Column(String(20))
     picture = Column(String(20))
     donation = Column(String(20))
+    status = Column(String(20))
+#0：提交申请；1：申请通过；2：申请不通过；3：个人设置不公开
 
 
 Base.metadata.create_all(engine, checkfirst=True)
@@ -66,7 +68,7 @@ class Detail(BaseModel):
 async def register(register: Register):
     session = Session()
     password = base64.b64encode(register.password.encode())
-    new_user = User(name=register.name, password=password, bonus_points=100, level=1)
+    new_user = User(name=register.name, password=password, bonus_points=100, level = 0)
     session.add(new_user)
     session.commit()
     session.close()
@@ -100,7 +102,7 @@ async def upload(file: UploadFile = File(...), text1: str = None, text2: str = N
         user = session.query(User).filter(User.name == username).first()
         if user:
             new_project = Project(project_name=text1, name=user.name, bonus_points=user.bonus_points, describe=text2,
-                                  picture=contents, donation=0)
+                                  picture=contents, donation=0, status = 0)
             session.add(new_project)
             session.commit()
             session.close()
@@ -119,7 +121,7 @@ async def show_all(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms='HS256')
         username: str = payload.get("user_name")
-        user = session.query(User).filter(User.name == username).first()
+        user = session.query(User).filter(User.name == username).filter(Project.status == 1)
         if user:
             project_list = session.query(Project).all()
             return project_list

@@ -98,19 +98,55 @@ async def upload(file: UploadFile = File(...), text1: str = None, text2: str = N
         username: str = payload.get("user_name")
         user = session.query(User).filter(User.name == username).first()
         if user:
-            return user.name
+            new_project = Project(project_name=text1, name=user.name, bonus_points=user.bonus_points, describe=text2,
+                                  picture=contents, donation=0)
+            session.add(new_project)
+            session.commit()
+            session.close()
+            return {"code": 200, "message": "上传成功"}
     except jwt.PyJWTError:
+        session.close()
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
-    new_project = Project(project_name=text1, name=user.name, bonus_points=user.bonus_points, describe=text2,
-                          picture=contents, donation=0)
-    session.add(new_project)
-    session.commit()
-    session.close()
-    return {"code": 200, "message": "上传成功"}
 
+
+@app.get("/show_all")
+async def show_all(token: str = Depends(oauth2_scheme)):
+    session = Session()
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms='HS256')
+        username: str = payload.get("user_name")
+        user = session.query(User).filter(User.name == username).first()
+        if user:
+            project_list = session.query(Project).all()
+            return project_list
+
+    except jwt.PyJWTError:
+        session.close()
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="认证失败",
+            headers={"WWW-Authenticate": "Bearer"}, )
+
+@app.get("/show_mine")
+async def show_mine(token: str = Depends(oauth2_scheme)):
+    session = Session()
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms='HS256')
+        username: str = payload.get("user_name")
+        user = session.query(User).filter(User.name == username).first()
+        if user:
+            project_list = session.query(Project).filter(Project.name==username)
+            return project_list
+
+    except jwt.PyJWTError:
+        session.close()
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="认证失败",
+            headers={"WWW-Authenticate": "Bearer"}, )
 
 @app.get("/detail")
 async def detail(detail: Detail, token: str = Depends(oauth2_scheme)):
@@ -120,22 +156,21 @@ async def detail(detail: Detail, token: str = Depends(oauth2_scheme)):
         username: str = payload.get("user_name")
         user = session.query(User).filter(User.name == username).first()
         if user:
-            return user.name
+            project_name = detail.project_name
+            name = detail.name
+            bonus_points = detail.bonus_points
+            describe = detail.descriebe
+            picture = detail.picture
+            donation = detail.donation
+            session.commit()
+            session.close()
+            return project_name, name, bonus_points, describe, picture, donation
     except jwt.PyJWTError:
+        session.close()
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
-
-    project_name = detail.project_name
-    name = detail.name
-    bonus_points = detail.bonus_points
-    describe = detail.descriebe
-    picture = detail.picture
-    donation = detail.donation
-    session.commit()
-    session.close()
-    return project_name, name, bonus_points, describe, picture, donation
 
 
 @app.api_route("/donate", methods=["GET", "POST"])
@@ -146,23 +181,24 @@ async def donate(detail: Detail, text1: str = None, token: str = Depends(oauth2_
         username: str = payload.get("user_name")
         user = session.query(User).filter(User.name == username).first()
         if user:
-            return user
+            project_name = detail.project_name
+            donation = detail.donation
+            donations = text1
+            donation = int(donations) + int(donation)
+            detail.donation = donation
+            user.bonus_points += int(donations) / 10
+            session.query(User).filter(User.name == username).update({"bonus_points": "user.bonus_points"})
+            session.query(Project).filter(Project.name == project_name).update({"donation": "donation"})
+            session.commit()
+            session.close()
+            return {"code": 200, "message": "捐赠成功"}
     except jwt.PyJWTError:
+        session.close()
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
-    project_name = detail.project_name
-    donation = detail.donation
-    donations = text1
-    donation = int(donations) + int(donation)
-    detail.donation = donation
-    user.bonus_points += int(donations) / 10
-    session.query(User).filter(User.name == username).update({"bonus_points": "user.bonus_points"})
-    session.query(Project).filter(Project.name == project_name).update({"donation": "donation"})
-    session.commit()
-    session.close()
-    return {"code": 200, "message": "捐赠成功"}
+
 
 
 if __name__ == '__main__':

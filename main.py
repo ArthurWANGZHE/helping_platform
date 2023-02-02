@@ -17,8 +17,9 @@ engine = create_engine('mysql://root:123456@127.0.0.1:3306/db', echo=True)
 class User(Base):
     __tablename__ = 'user'
     name = Column(String(20), primary_key=True)
-    password = Column(String(20))
+    password = Column(String(50), primary_key=True)
     bonus_points = Column(Integer)
+    level = Column(Integer)
 
 
 class Project(Base):
@@ -65,7 +66,7 @@ class Detail(BaseModel):
 async def register(register: Register):
     session = Session()
     password = base64.b64encode(register.password.encode())
-    new_user = User(name=register.name, password=password, bonus_points=100)
+    new_user = User(name=register.name, password=password, bonus_points=100, level=1)
     session.add(new_user)
     session.commit()
     session.close()
@@ -82,7 +83,7 @@ async def login(login: Login):
     user = session.query(User).filter(User.name == login.name, User.password == password_).first()
     session.close()
     if user:
-        token = jwt.encode({'user_name': user.name}, SECRET_KEY, algorithm='HS256')
+        token = jwt.encode({'user_name': user.name, 'user_level': user.level}, SECRET_KEY, algorithm='HS256')
         return {'token': token, "code": 200, "message": "登录成功"}
     else:
         return {"code": 400, "message": "登录失败"}
@@ -130,6 +131,7 @@ async def show_all(token: str = Depends(oauth2_scheme)):
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
 
+
 @app.get("/show_mine")
 async def show_mine(token: str = Depends(oauth2_scheme)):
     session = Session()
@@ -138,7 +140,7 @@ async def show_mine(token: str = Depends(oauth2_scheme)):
         username: str = payload.get("user_name")
         user = session.query(User).filter(User.name == username).first()
         if user:
-            project_list = session.query(Project).filter(Project.name==username)
+            project_list = session.query(Project).filter(Project.name == username)
             return project_list
 
     except jwt.PyJWTError:
@@ -147,6 +149,7 @@ async def show_mine(token: str = Depends(oauth2_scheme)):
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
+
 
 @app.get("/detail")
 async def detail(detail: Detail, token: str = Depends(oauth2_scheme)):
@@ -198,7 +201,6 @@ async def donate(detail: Detail, text1: str = None, token: str = Depends(oauth2_
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
-
 
 
 if __name__ == '__main__':

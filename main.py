@@ -23,12 +23,12 @@ class User(Base):
 
 
 class Project(Base):
-    __tablename__ = 'project'
+    __tablename__ = 'projects'
     name = Column(String(20), primary_key=True)
     project_name = Column(String(20))
     bonus_points = Column(String(20))
     describe = Column(String(20))
-    picture = Column(String(20))
+    picture = Column(String(1000))
     donation = Column(String(20))
     status = Column(String(20))
 #0：提交申请；1：申请通过；2：申请不通过；3：个人设置不公开
@@ -54,9 +54,9 @@ class Login(BaseModel):
 
 
 class Apply(BaseModel):
-    name: str
+    project_name: str
     bonus_points: str
-    desicribe: str
+    description: str
     picture: str
 
 
@@ -90,7 +90,7 @@ async def login(login: Login):
     else:
         return {"code": 400, "message": "登录失败"}
 
-
+"""
 @app.post("/upload")
 async def upload(file: UploadFile = File(...), text1: str = None, text2: str = None,
                  token: str = Depends(oauth2_scheme)):
@@ -113,6 +113,19 @@ async def upload(file: UploadFile = File(...), text1: str = None, text2: str = N
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
+
+"""
+@app.post("/upload")
+async def upload(file: UploadFile = File(...), project_name: str = None, description: str = None,
+                 ):
+    contents = await file.read()
+    session = Session()
+    new_project = Project(project_name=project_name, name="arthur", bonus_points=100, describe=description,
+                          picture=contents, donation=0, status=0)
+    session.add(new_project)
+    session.commit()
+    session.close()
+    return {"code": 200, "message": "上传成功"}
 
 
 @app.get("/show_all")

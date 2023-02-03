@@ -196,7 +196,7 @@ async def detail(detail: Detail, token: str = Depends(oauth2_scheme)):
             headers={"WWW-Authenticate": "Bearer"}, )
 
 
-@app.api_route("/donate", methods=["GET", "POST"])
+@app.api_route("/donate", methods=["GET", "PATCH"])
 async def donate(detail: Detail, text1: str = None, token: str = Depends(oauth2_scheme)):
     session = Session()
     try:

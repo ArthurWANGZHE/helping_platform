@@ -34,7 +34,12 @@ class Project(Base):
 
 
 # 0：提交申请；1：申请通过；2：申请不通过；3：个人设置不公开
+class Image(Base):
+    __tablename__ = 'images'
 
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(30))
+    path = Column(String(100))
 
 Base.metadata.create_all(engine, checkfirst=True)
 Session = sessionmaker(bind=engine)
@@ -123,10 +128,15 @@ async def upload(file: UploadFile = File(...), text1: str = None, text2: str = N
 @app.post("/upload")
 async def upload(file: UploadFile = File(...), project_name: str = None, description: str = None,
                  ):
-    contents = await file.read()
     session = Session()
+    project_name = file.filename
+    file_path = f"D:\Developer\coding\data\{project_name}"
+    with open(file_path, "wb") as f:
+        f.write(file.file.read())
+    image = Image(name=project_name, path=file_path)
     new_project = Project(project_name=project_name, name="arthur", bonus_points=100, describe=description,
-                          picture=contents, donation=0, status=0)
+                          picture=image, donation=0, status=0)
+    session.add(image)
     session.add(new_project)
     session.commit()
     session.close()

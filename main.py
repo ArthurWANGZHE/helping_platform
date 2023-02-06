@@ -2,7 +2,7 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine, Column, Integer, String,Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import jwt
@@ -22,13 +22,16 @@ class User(Base):
     level = Column(String(2))
 
 
+
+
+
 class Project(Base):
-    __tablename__ = 'projects'
+    __tablename__ = 'project'
     name = Column(String(20), primary_key=True)
     project_name = Column(String(20))
     bonus_points = Column(String(20))
     describe = Column(String(20))
-    picture = Column(String(1000))
+    picture = Column(Text)
     donation = Column(String(20))
     status = Column(String(20))
 
@@ -129,13 +132,13 @@ async def upload(file: UploadFile = File(...), text1: str = None, text2: str = N
 async def upload(file: UploadFile = File(...), project_name: str = None, description: str = None,
                  ):
     session = Session()
-    project_name = file.filename
-    file_path = f"D:\Developer\coding\data\{project_name}"
+    file_name = file.filename
+    file_path = f"D:\Developer\coding\data\{file_name}"
     with open(file_path, "wb") as f:
         f.write(file.file.read())
-    image = Image(name=project_name, path=file_path)
+    image = Image(name=file_name, path=file_path)
     new_project = Project(project_name=project_name, name="arthur", bonus_points=100, describe=description,
-                          picture=image, donation=0, status=0)
+                          picture=file_path, donation=0, status=0)
     session.add(image)
     session.add(new_project)
     session.commit()

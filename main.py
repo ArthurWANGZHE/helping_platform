@@ -2,7 +2,7 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String,Text
+from sqlalchemy import create_engine, Column, Integer, String, Text, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import jwt
@@ -18,7 +18,7 @@ class User(Base):
     __tablename__ = 'users'
     name = Column(String(20), primary_key=True)
     password = Column(String(50), primary_key=True)
-    bonus_points = Column(Integer)
+    bonus_points = Column(Float)
     level = Column(String(2))
 
 
@@ -27,7 +27,8 @@ class User(Base):
 
 class Project(Base):
     __tablename__ = 'project'
-    name = Column(String(20), primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(20))
     project_name = Column(String(20))
     bonus_points = Column(String(20))
     describe = Column(String(20))
@@ -145,16 +146,16 @@ async def upload(file: UploadFile = File(...), project_name: str = None, descrip
     session.close()
     return {"code": 200, "message": "上传成功"}
 
-
+"""
 @app.get("/show_all")
 async def show_all(token: str = Depends(oauth2_scheme)):
     session = Session()
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms='HS256')
         username: str = payload.get("user_name")
-        user = session.query(User).filter(User.name == username).filter(Project.status == 1)
+        user = session.query(User).filter(User.name == username).first()
         if user:
-            project_list = session.query(Project).all()
+            project_list = session.query(Project).filter(Project.status == 1)
             return project_list
 
     except jwt.PyJWTError:
@@ -163,8 +164,20 @@ async def show_all(token: str = Depends(oauth2_scheme)):
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
+"""
+@app.get("/show_all")
+async def show_all():
+    session = Session()
+    project_list = []
+    projects = session.query(Project).filter(Project.status == 1).all()
+    for item in projects:
+        project_list.append(item.project_name)
+    session.close()
+    print(project_list)
+    return f"{{\"message\":\"{project_list}\"}}"
 
 
+"""
 @app.get("/show_mine")
 async def show_mine(token: str = Depends(oauth2_scheme)):
     session = Session()
@@ -182,8 +195,21 @@ async def show_mine(token: str = Depends(oauth2_scheme)):
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
+"""
+@app.get("/show_mine")
+async def show_mine():
+    session = Session()
+    username = "arthur"
+    project_list = []
+    projects = session.query(Project).filter(Project.name == username).all()
+    for item in projects:
+        project_list.append(item.project_name)
+    session.close()
+    print(project_list)
+    return f"{{\"message\":\"{project_list}\"}}"
 
 
+"""
 @app.get("/detail")
 async def detail(detail: Detail, token: str = Depends(oauth2_scheme)):
     session = Session()
@@ -207,8 +233,23 @@ async def detail(detail: Detail, token: str = Depends(oauth2_scheme)):
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
+"""
+@app.post("/detail")
+async def detail(detail: Detail):
+    session = Session()
+    project = session.query(Project).filter(Project.project_name == detail.project_name).first()
+    project_name = detail.project_name
+    name = project.name
+    bonus_points = project.bonus_points
+    describe = project.describe
+    picture = project.picture
+    donation = project.donation
+    session.commit()
+    session.close()
+    print(project_name, name, bonus_points, describe, picture, donation)
+    return {"code": 200, "message": "搜索成功"}
 
-
+"""
 @app.api_route("/donate", methods=["GET", "PATCH"])
 async def donate(detail: Detail, text1: str = None, token: str = Depends(oauth2_scheme)):
     session = Session()
@@ -234,7 +275,24 @@ async def donate(detail: Detail, text1: str = None, token: str = Depends(oauth2_
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
+"""
+@app.patch("/donate")
+async def donate(detail: Detail, text1: str = None):
+    session = Session()
 
+    username = "arthur"
+    user = session.query(User).filter(User.name == username).first()
+    project = session.query(Project).filter(Project.project_name == detail.project_name).first()
+    donation = project.donation
+    donations = text1
+    donation = int(donations) + int(donation)
+    project.donation = donation
+    user.bonus_points += int(donations) / 10
+    session.query(User).filter(User.name == user.name).update({"bonus_points": "user.bonus_points"})
+    session.query(Project).filter(Project.name == project.name).update({"donation": "donation"})
+    session.commit()
+    session.close()
+    return {"code": 200, "message": "捐赠成功"}
 
 @app.patch("/invest")
 async def invest(detail: Detail, result_status: str = None, token: str = Depends(oauth2_scheme)):

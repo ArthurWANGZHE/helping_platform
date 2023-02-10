@@ -121,23 +121,29 @@ async def login(login: Login):
         return {"code": 400, "message": "登录失败"}
 
 
-"""
+
 @app.post("/upload")
-async def upload(file: UploadFile = File(...), text1: str = None, text2: str = None,
+async def upload(file: UploadFile = File(...),  project_name: str = None, description: str = None,
                  token: str = Depends(oauth2_scheme)):
-    contents = await file.read()
     session = Session()
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms='HS256')
         username: str = payload.get("user_name")
         user = session.query(User).filter(User.name == username).first()
         if user:
-            new_project = Project(project_name=text1, name=user.name, bonus_points=user.bonus_points, describe=text2,
-                                  picture=contents, donation=0, status = 0)
+            file_name = file.filename
+            file_path = f"D:\Developer\coding\data\{file_name}"
+            with open(file_path, "wb") as f:
+                f.write(file.file.read())
+            image = Image(name=file_name, path=file_path)
+            new_project = Project(project_name=project_name, name="arthur", bonus_points=100, describe=description,
+                                  picture=file_path, donation=0, status=0)
+            session.add(image)
             session.add(new_project)
             session.commit()
             session.close()
             return {"code": 200, "message": "上传成功"}
+
     except jwt.PyJWTError:
         session.close()
         raise HTTPException(
@@ -145,9 +151,9 @@ async def upload(file: UploadFile = File(...), text1: str = None, text2: str = N
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
 
+
+
 """
-
-
 @app.post("/upload")
 async def upload(file: UploadFile = File(...), project_name: str = None, description: str = None,
                  ):
@@ -164,18 +170,24 @@ async def upload(file: UploadFile = File(...), project_name: str = None, descrip
     session.commit()
     session.close()
     return {"code": 200, "message": "上传成功"}
-
 """
+
+
+
 @app.get("/show_all")
 async def show_all(token: str = Depends(oauth2_scheme)):
     session = Session()
+    project_list = []
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms='HS256')
         username: str = payload.get("user_name")
         user = session.query(User).filter(User.name == username).first()
         if user:
-            project_list = session.query(Project).filter(Project.status == 1)
-            return project_list
+            projects = session.query(Project).filter(Project.status == 1).all()
+            for item in projects:
+                project_list.append(item.project_name)
+            session.close()
+            return f"{{\"message\":\"{project_list}\"}}"
 
     except jwt.PyJWTError:
         session.close()
@@ -194,19 +206,23 @@ async def show_all():
     session.close()
     print(project_list)
     return f"{{\"message\":\"{project_list}\"}}"
-
-
 """
+
+
 @app.get("/show_mine")
 async def show_mine(token: str = Depends(oauth2_scheme)):
     session = Session()
+    project_list = []
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms='HS256')
         username: str = payload.get("user_name")
         user = session.query(User).filter(User.name == username).first()
         if user:
-            project_list = session.query(Project).filter(Project.name == username)
-            return project_list
+            projects = session.query(Project).filter(Project.name == username).all()
+            for item in projects:
+                project_list.append(item.project_name)
+            session.close()
+            return f"{{\"message\":\"{project_list}\"}}"
 
     except jwt.PyJWTError:
         session.close()
@@ -226,9 +242,9 @@ async def show_mine():
     session.close()
     print(project_list)
     return f"{{\"message\":\"{project_list}\"}}"
-
-
 """
+
+
 @app.get("/detail")
 async def detail(detail: Detail, token: str = Depends(oauth2_scheme)):
     session = Session()
@@ -237,21 +253,26 @@ async def detail(detail: Detail, token: str = Depends(oauth2_scheme)):
         username: str = payload.get("user_name")
         user = session.query(User).filter(User.name == username).first()
         if user:
+            project = session.query(Project).filter(Project.project_name == detail.project_name).first()
             project_name = detail.project_name
-            name = detail.name
-            bonus_points = detail.bonus_points
-            describe = detail.descriebe
-            picture = detail.picture
-            donation = detail.donation
+            name = project.name
+            bonus_points = project.bonus_points
+            describe = project.describe
+            picture = project.picture
+            donation = project.donation
             session.commit()
             session.close()
-            return project_name, name, bonus_points, describe, picture, donation
+            print(project_name, name, bonus_points, describe, picture, donation)
+            return {"code": 200, "message": "搜索成功"}
     except jwt.PyJWTError:
         session.close()
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
+
+
+
 """
 @app.post("/detail")
 async def detail(detail: Detail):
@@ -269,7 +290,9 @@ async def detail(detail: Detail):
     return {"code": 200, "message": "搜索成功"}
 
 """
-@app.api_route("/donate", methods=["GET", "PATCH"])
+
+
+@app.patch("/donate")
 async def donate(detail: Detail, text1: str = None, token: str = Depends(oauth2_scheme)):
     session = Session()
     try:
@@ -277,14 +300,14 @@ async def donate(detail: Detail, text1: str = None, token: str = Depends(oauth2_
         username: str = payload.get("user_name")
         user = session.query(User).filter(User.name == username).first()
         if user:
-            project_name = detail.project_name
-            donation = detail.donation
+            project = session.query(Project).filter(Project.project_name == detail.project_name).first()
+            donation = project.donation
             donations = text1
             donation = int(donations) + int(donation)
-            detail.donation = donation
+            project.donation = donation
             user.bonus_points += int(donations) / 10
-            session.query(User).filter(User.name == username).update({"bonus_points": "user.bonus_points"})
-            session.query(Project).filter(Project.name == project_name).update({"donation": "donation"})
+            session.query(User).filter(User.name == user.name).update({"bonus_points": "user.bonus_points"})
+            session.query(Project).filter(Project.name == project.name).update({"donation": "donation"})
             session.commit()
             session.close()
             return {"code": 200, "message": "捐赠成功"}
@@ -294,6 +317,8 @@ async def donate(detail: Detail, text1: str = None, token: str = Depends(oauth2_
             status_code=HTTP_401_UNAUTHORIZED,
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"}, )
+
+
 """
 @app.patch("/donate")
 async def donate(detail: Detail, text1: str = None):
@@ -312,7 +337,9 @@ async def donate(detail: Detail, text1: str = None):
     session.commit()
     session.close()
     return {"code": 200, "message": "捐赠成功"}
-
+    
+    
+"""
 @app.patch("/invest")
 async def invest(detail: Detail, result_status: str = None, token: str = Depends(oauth2_scheme)):
     session = Session()

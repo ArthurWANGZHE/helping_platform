@@ -67,8 +67,9 @@ db.commit()
 print("添加了新列..")
 
 db.close()
-"""
+
 
 session = Session()
-    project_list = session.query(Project).filter(Project.status == 1)
-    session.close()
+project_list = session.query(Project).filter(Project.status == 1)
+session.close()
+"""

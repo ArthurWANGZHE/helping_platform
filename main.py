@@ -362,4 +362,4 @@ async def invest(detail: Detail, result_status: str = None, token: str = Depends
 
 
 if __name__ == '__main__':
-    uvicorn.run(app=app, host="192.168.1.4", port=3000)
+    uvicorn.run(app=app, host="127.0.0.1", port=3000)
